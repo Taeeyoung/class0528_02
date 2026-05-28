@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>수업 알림 시스템</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    /* ── 시계 ── */
+    #clock {
+      font-size: 5rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: #e0e0ff;
+      text-shadow: 0 0 20px rgba(160,160,255,0.5);
+    }
+    #date-label {
+      margin-top: 0.4rem;
+      font-size: 1rem;
+      color: #aaa;
+      text-align: center;
+    }
+
+    /* ── 다음 알림 안내 ── */
+    #next-info {
+      margin-top: 1.5rem;
+      font-size: 1rem;
+      color: #bbb;
+      background: rgba(255,255,255,0.05);
+      padding: 0.5rem 1.4rem;
+      border-radius: 999px;
+      text-align: center;
+    }
+
+    /* ── 설정 버튼 ── */
+    #settings-toggle {
+      margin-top: 1.2rem;
+      padding: 0.45rem 1.2rem;
+      font-size: 0.9rem;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.07);
+      color: #ccc;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #settings-toggle:hover { background: rgba(255,255,255,0.15); }
+
+    /* ── 설정 패널 ── */
+    #settings-panel {
+      display: none;
+      margin-top: 1.2rem;
+      width: 100%;
+      max-width: 520px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 1.2rem;
+      padding: 1.4rem 1.6rem;
+    }
+    #settings-panel.open { display: block; }
+
+    #settings-panel h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #ccc;
+      margin-bottom: 1rem;
+      letter-spacing: 0.04em;
+    }
+
+    .alert-row {
+      display: grid;
+      grid-template-columns: 2rem 1fr auto auto auto;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.7rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .alert-row:last-of-type { border-bottom: none; }
+
+    .alert-icon { font-size: 1.3rem; text-align: center; }
+    .alert-label { font-size: 0.9rem; color: #ddd; }
+
+    .alert-row input[type="number"] {
+      width: 52px;
+      padding: 0.3rem 0.4rem;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      color: #fff;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+    .alert-row input[type="number"]:focus {
+      outline: none;
+      border-color: rgba(160,160,255,0.5);
+    }
+
+    .alert-row .unit { font-size: 0.8rem; color: #888; }
+
+    /* 토글 스위치 */
+    .toggle-wrap { display: flex; align-items: center; }
+    .toggle {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: #444;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 14px; height: 14px;
+      left: 3px; top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle input:checked + .toggle-slider { background: #6c6cff; }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+
+    .settings-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.6rem;
+      margin-top: 1.1rem;
+    }
+    .btn-secondary {
+      padding: 0.4rem 1rem;
+      font-size: 0.85rem;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      background: transparent;
+      color: #aaa;
+      cursor: pointer;
+    }
+    .btn-primary {
+      padding: 0.4rem 1.1rem;
+      font-size: 0.85rem;
+      border: none;
+      border-radius: 8px;
+      background: #6c6cff;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-primary:hover { background: #5a5aee; }
+
+    /* ── 알림 오버레이 ── */
+    #overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,0.85);
+      animation: fadeIn 0.4s ease;
+    }
+    #overlay.active { display: flex; }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    #overlay-image {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+      object-fit: cover;
+      opacity: 0.55;
+    }
+
+    #overlay-content {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      padding: 2rem;
+      background: rgba(0,0,0,0.45);
+      border-radius: 1.5rem;
+      backdrop-filter: blur(6px);
+      max-width: 480px;
+      width: 90%;
+    }
+
+    #overlay-icon { font-size: 3.5rem; }
+    #overlay-title { font-size: 2rem; font-weight: 700; margin: 0.5rem 0; }
+    #overlay-message { font-size: 1.1rem; color: #ddd; line-height: 1.6; white-space: pre-line; }
+
+    #overlay-timer {
+      margin-top: 1rem;
+      font-size: 3rem;
+      font-weight: 700;
+      color: #7fd8ff;
+      letter-spacing: 0.05em;
+    }
+
+    #close-btn {
+      margin-top: 1.5rem;
+      padding: 0.6rem 2rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #close-btn:hover { background: rgba(255,255,255,0.35); }
+
+    /* ── 로그 ── */
+    #log {
+      margin-top: 2rem;
+      max-width: 520px;
+      width: 100%;
+      font-size: 0.8rem;
+      color: #555;
+    }
+    #log li {
+      list-style: none;
+      padding: 0.25rem 0;
+      border-bottom: 1px solid #222;
+    }
+
+    /* ── 테스트 버튼 영역 ── */
+    #test-buttons {
+      display: none;
+      margin-top: 1rem;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    #test-buttons button {
+      padding: 0.4rem 0.9rem;
+      border: 1px solid #555;
+      border-radius: 8px;
+      background: #333;
+      color: #eee;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="clock">00:00:00</div>
+  <div id="date-label"></div>
+  <div id="next-info">로딩 중…</div>
+
+  <button id="settings-toggle" onclick="toggleSettings()">⚙️ 알림 설정</button>
+
+  <!-- 설정 패널 -->
+  <div id="settings-panel">
+    <h2>알림 시각 설정</h2>
+    <div id="alert-rows"></div>
+    <div class="settings-actions">
+      <button class="btn-secondary" onclick="resetSettings()">기본값</button>
+      <button class="btn-primary" onclick="saveSettings()">저장</button>
+    </div>
+  </div>
+
+  <div id="test-buttons"></div>
+
+  <!-- 알림 오버레이 -->
+  <div id="overlay">
+    <img id="overlay-image" src="" alt="자연 배경" />
+    <div id="overlay-content">
+      <div id="overlay-icon">🌿</div>
+      <div id="overlay-title">휴식 시간</div>
+      <div id="overlay-message">잠시 눈을 쉬어 주세요.</div>
+      <div id="overlay-timer"></div>
+      <button id="close-btn" onclick="closeOverlay()">닫기</button>
+    </div>
+  </div>
+
+  <ul id="log"></ul>
+
+  <script>
+    // ── 자연/바다/힐링 이미지 (Unsplash) ─────────────────────────────────
+    const NATURE_IMAGES = [
+      'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1600&q=80',
+      'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=1600&q=80',
+      'https://images.unsplash.com/photo-1470770903676-69b98201ea1c?w=1600&q=80',
+      'https://images.unsplash.com/photo-1518020382113-a7e8fc38eac9?w=1600&q=80',
+      'https://images.unsplash.com/photo-1448375240586-882707db888b?w=1600&q=80',
+      'https://images.unsplash.com/photo-1439853949212-36089be13996?w=1600&q=80',
+      'https://images.unsplash.com/photo-1505118380757-91f5f5632de0?w=1600&q=80',
+      'https://images.unsplash.com/photo-1497449493050-aad1e7b7be65?w=1600&q=80',
+    ];
+
+    // ── 기본 알림 정의 ────────────────────────────────────────────────────
+    const DEFAULT_ALERTS = [
+      {
+        id: 'start',
+        minute: 0,
+        icon: '🔔',
+        title: '수업 시작',
+        message: '수업을 시작합니다.\n집중해서 들어볼까요!',
+        duration: 0,       // 카운트다운 없음
+        useNature: false,
+        enabled: true,
+      },
+      {
+        id: 'break',
+        minute: 40,
+        icon: '🌿',
+        title: '휴식 시간!',
+        message: '10분간 휴식하세요.\n눈을 감거나 먼 곳을 바라보며\n긴장을 풀어보세요.',
+        duration: 10 * 60,
+        useNature: true,
+        enabled: true,
+      },
+      {
+        id: 'wrap',
+        minute: 50,
+        icon: '📚',
+        title: '수업 마무리',
+        message: '수업이 곧 마무리됩니다.\n오늘 배운 내용을 정리해 보세요.',
+        duration: 5 * 60,
+        useNature: false,
+        enabled: true,
+      },
+    ];
+
+    // ── 설정 로드/저장 (localStorage) ────────────────────────────────────
+    function loadAlerts() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('classAlerts'));
+        if (!saved) return JSON.parse(JSON.stringify(DEFAULT_ALERTS));
+        // saved에 minute/enabled만 덮어쓰고 나머지는 DEFAULT 유지
+        return DEFAULT_ALERTS.map(def => {
+          const s = saved.find(x => x.id === def.id);
+          return s ? { ...def, minute: s.minute, enabled: s.enabled } : { ...def };
+        });
+      } catch (_) {
+        return JSON.parse(JSON.stringify(DEFAULT_ALERTS));
+      }
+    }
+
+    function persistAlerts(alerts) {
+      localStorage.setItem('classAlerts',
+        JSON.stringify(alerts.map(a => ({ id: a.id, minute: a.minute, enabled: a.enabled }))));
+    }
+
+    let ALERTS = loadAlerts();
+
+    // ── 설정 패널 렌더링 ──────────────────────────────────────────────────
+    function renderSettingsRows() {
+      const container = document.getElementById('alert-rows');
+      container.innerHTML = '';
+      ALERTS.forEach(a => {
+        const row = document.createElement('div');
+        row.className = 'alert-row';
+        row.innerHTML = `
+          <span class="alert-icon">${a.icon}</span>
+          <span class="alert-label">${a.title}</span>
+          <span class="unit">매시</span>
+          <input type="number" min="0" max="59" value="${a.minute}"
+                 id="input-${a.id}" style="width:52px" />
+          <span class="unit">분</span>
+          <label class="toggle" title="활성화">
+            <input type="checkbox" id="enabled-${a.id}" ${a.enabled ? 'checked' : ''} />
+            <span class="toggle-slider"></span>
+          </label>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function toggleSettings() {
+      const panel = document.getElementById('settings-panel');
+      panel.classList.toggle('open');
+      if (panel.classList.contains('open')) renderSettingsRows();
+    }
+
+    function saveSettings() {
+      ALERTS.forEach(a => {
+        const inp = document.getElementById(`input-${a.id}`);
+        const chk = document.getElementById(`enabled-${a.id}`);
+        if (inp) a.minute = Math.max(0, Math.min(59, parseInt(inp.value) || 0));
+        if (chk) a.enabled = chk.checked;
+      });
+      persistAlerts(ALERTS);
+      firedThisMinute.clear();
+      document.getElementById('settings-panel').classList.remove('open');
+      refreshTestButtons();
+    }
+
+    function resetSettings() {
+      ALERTS = JSON.parse(JSON.stringify(DEFAULT_ALERTS));
+      persistAlerts(ALERTS);
+      firedThisMinute.clear();
+      renderSettingsRows();
+    }
+
+    // ── 테스트 버튼 (URL ?test=1) ────────────────────────────────────────
+    function refreshTestButtons() {
+      if (!location.search.includes('test=1')) return;
+      const wrap = document.getElementById('test-buttons');
+      wrap.style.display = 'flex';
+      wrap.innerHTML = '';
+      ALERTS.forEach(a => {
+        const btn = document.createElement('button');
+        btn.textContent = `${a.icon} ${a.title} 테스트`;
+        btn.onclick = () => openOverlay(a);
+        wrap.appendChild(btn);
+      });
+    }
+    refreshTestButtons();
+
+    // ── 상태 ──────────────────────────────────────────────────────────────
+    let overlayTimer = null;
+    let overlayRemaining = 0;
+    let firedThisMinute = new Set();
+
+    // ── 시계 ──────────────────────────────────────────────────────────────
+    function tick() {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      document.getElementById('clock').textContent = `${hh}:${mm}:${ss}`;
+
+      const days = ['일','월','화','수','목','금','토'];
+      document.getElementById('date-label').textContent =
+        `${now.getFullYear()}년 ${now.getMonth()+1}월 ${now.getDate()}일 (${days[now.getDay()]})`;
+
+      updateNextInfo(now);
+
+      // 알림 체크 — 초가 0일 때 한 번만
+      const key = `${hh}:${mm}`;
+      if (now.getSeconds() === 0 && !firedThisMinute.has(key)) {
+        firedThisMinute.add(key);
+        if (firedThisMinute.size > 10) {
+          firedThisMinute.delete([...firedThisMinute][0]);
+        }
+        const alert = ALERTS.find(a => a.enabled && a.minute === now.getMinutes());
+        if (alert) fireAlert(alert, now);
+      }
+    }
+
+    function updateNextInfo(now) {
+      const curTotalMin = now.getHours() * 60 + now.getMinutes();
+      let minDiff = Infinity;
+      let closestAlert = null;
+
+      for (const a of ALERTS) {
+        if (!a.enabled) continue;
+        for (let h = 0; h <= 23; h++) {
+          const target = h * 60 + a.minute;
+          const diff = target - curTotalMin;
+          if (diff > 0 && diff < minDiff) {
+            minDiff = diff;
+            closestAlert = a;
+          }
+        }
+      }
+
+      if (closestAlert) {
+        const h = Math.floor(minDiff / 60);
+        const m = minDiff % 60;
+        const timeStr = h > 0 ? `${h}시간 ${m}분` : `${m}분`;
+        document.getElementById('next-info').textContent =
+          `다음 알림 [${closestAlert.title}] 까지 ⏰ ${timeStr}`;
+      } else {
+        document.getElementById('next-info').textContent = '활성화된 알림 없음';
+      }
+    }
+
+    // ── 알림 발화 ─────────────────────────────────────────────────────────
+    function fireAlert(alert, now) {
+      if (Notification.permission === 'granted') {
+        new Notification(alert.title, {
+          body: alert.message.replace(/\n/g, ' '),
+        });
+      }
+      openOverlay(alert);
+      addLog(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')} — ${alert.title}`);
+    }
+
+    function openOverlay(alert) {
+      document.getElementById('overlay-icon').textContent = alert.icon;
+      document.getElementById('overlay-title').textContent = alert.title;
+      document.getElementById('overlay-message').textContent = alert.message;
+
+      const img = document.getElementById('overlay-image');
+      const overlay = document.getElementById('overlay');
+
+      if (alert.useNature) {
+        img.src = NATURE_IMAGES[Math.floor(Math.random() * NATURE_IMAGES.length)];
+        img.style.display = 'block';
+        overlay.style.background = 'rgba(0,0,0,0.85)';
+      } else {
+        img.style.display = 'none';
+        overlay.style.background = 'rgba(10,20,50,0.95)';
+      }
+
+      clearInterval(overlayTimer);
+      if (alert.duration > 0) {
+        overlayRemaining = alert.duration;
+        updateOverlayTimer();
+        overlayTimer = setInterval(() => {
+          overlayRemaining--;
+          updateOverlayTimer();
+          if (overlayRemaining <= 0) closeOverlay();
+        }, 1000);
+        document.getElementById('overlay-timer').style.display = 'block';
+      } else {
+        document.getElementById('overlay-timer').style.display = 'none';
+      }
+
+      overlay.classList.add('active');
+      playChime(alert.id === 'start' ? 'start' : 'default');
+    }
+
+    function updateOverlayTimer() {
+      const m = Math.floor(overlayRemaining / 60);
+      const s = overlayRemaining % 60;
+      document.getElementById('overlay-timer').textContent =
+        `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+
+    function closeOverlay() {
+      clearInterval(overlayTimer);
+      document.getElementById('overlay').classList.remove('active');
+    }
+
+    // ── 로그 ──────────────────────────────────────────────────────────────
+    function addLog(text) {
+      const li = document.createElement('li');
+      li.textContent = text;
+      const logEl = document.getElementById('log');
+      logEl.prepend(li);
+      if (logEl.children.length > 10) logEl.lastElementChild.remove();
+    }
+
+    // ── 효과음 ────────────────────────────────────────────────────────────
+    function playChime(type) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const sequences = {
+          start:   [{ f: 783.99, t: 0 }, { f: 1046.50, t: 0.2 }],          // G5 C6 (상승)
+          default: [{ f: 523.25, t: 0 }, { f: 659.25, t: 0.22 },
+                    { f: 783.99, t: 0.44 }, { f: 1046.50, t: 0.66 }],      // C→E→G→C (차임)
+        };
+        const notes = sequences[type] || sequences.default;
+        notes.forEach(({ f, t }) => {
+          const osc  = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.value = f;
+          const start = ctx.currentTime + t;
+          gain.gain.setValueAtTime(0, start);
+          gain.gain.linearRampToValueAtTime(0.25, start + 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + 0.9);
+          osc.start(start);
+          osc.stop(start + 0.95);
+        });
+      } catch (_) {}
+    }
+
+    // ── 브라우저 알림 권한 ────────────────────────────────────────────────
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    // ── 시작 ─────────────────────────────────────────────────────────────
+    tick();
+    setInterval(tick, 1000);
+  </script>
+</body>
+</html>
