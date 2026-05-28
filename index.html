@@ -244,7 +244,7 @@
 
     /* ── 테스트 버튼 영역 ── */
     #test-buttons {
-      display: none;
+      display: flex;
       margin-top: 1rem;
       gap: 0.6rem;
       flex-wrap: wrap;
@@ -415,7 +415,6 @@
 
     // ── 테스트 버튼 (URL ?test=1) ────────────────────────────────────────
     function refreshTestButtons() {
-      if (!location.search.includes('test=1')) return;
       const wrap = document.getElementById('test-buttons');
       wrap.style.display = 'flex';
       wrap.innerHTML = '';
